@@ -1,111 +1,84 @@
-#include "io.h"
-#include <stdint.h>
-#include <stddef.h>
+#include "keyboard.h"
 
-extern void terminal_putchar(char c);
-extern void kputs(const char* str);
-extern void terminal_initialize(void);
-
-#define BUFFER_SIZE 256
-char input_buffer[BUFFER_SIZE];
-size_t buffer_index = 0;
-
-// Estado das teclas modificadoras
-int shift_pressed = 0;
-
-/* Tabela Normal (Sem Shift) - Layout ABNT2 com 'ç' (135 em CP437) */
-const char keyboard_map_normal[128] = {
-    0,  27, '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=', '\b',
-  '\t', 'q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p',  0,  '[', '\n',
-     0, 'a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', 135, '~', '\'',  0,
-   '\\', 'z', 'x', 'c', 'v', 'b', 'n', 'm', ',', '.', ';',  0, '*',   0, ' '
-};
-
-/* Tabela Modificada (Com Shift) - Layout ABNT2 com 'Ç' (128 em CP437) */
-const char keyboard_map_shift[128] = {
-    0,  27, '!', '@', '#', '$', '%', '"', '&', '*', '(', ')', '_', '+', '\b',
-  '\t', 'Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P',  0,  '{', '\n',
-     0, 'A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L', 128, '^', '`',   0,
-    '|', 'Z', 'X', 'C', 'V', 'B', 'N', 'M', '<', '>', ':',  0, '*',   0, ' '
-};
-
-int strcmp(const char* s1, const char* s2) {
-    while (*s1 && (*s1 == *s2)) {
-        s1++;
-        s2++;
-    }
-    return *(unsigned char*)s1 - *(unsigned char*)s2;
+static inline uint8_t inb(uint16_t port) {
+    uint8_t ret;
+    __asm__ __volatile__ ("inb %1, %0" : "=a"(ret) : "Nd"(port));
+    return ret;
 }
 
-void process_command(void) {
-    input_buffer[buffer_index] = '\0';
-
-    if (buffer_index == 0) {
-        kputs("\nKernioLuc> ");
-        return;
-    }
-
-    kputs("\n");
-
-    if (strcmp(input_buffer, "help") == 0) {
-        kputs("Comandos disponiveis: help, clear, about\n");
-    } else if (strcmp(input_buffer, "clear") == 0) {
-        terminal_initialize();
-    } else if (strcmp(input_buffer, "about") == 0) {
-        kputs("KernioLuc OS v0.1 - Kernel x86 em Modo Protegido 32-bit\n");
-    } else {
-        kputs("Comando nao reconhecido: ");
-        kputs(input_buffer);
-        kputs("\n");
-    }
-
-    buffer_index = 0;
-    kputs("KernioLuc> ");
+static inline void outb(uint16_t port, uint8_t val) {
+    __asm__ __volatile__ ("outb %0, %1" : : "a"(val), "Nd"(port));
 }
 
-int pending_tilde = 0;
+void init_keyboard(void) {
+    // Inicialização reservada
+}
 
 void keyboard_handler(void) {
-    uint8_t scancode = inb(0x60);
+    // Handler reservado para IDT
+}
 
-    if (scancode == 0x2A || scancode == 0x36) {
-        shift_pressed = 1;
-    } else if (scancode == 0xAA || scancode == 0xB6) {
-        shift_pressed = 0;
-    } else if (!(scancode & 0x80)) {
-        if (scancode < 128) {
-            char letter = shift_pressed ? keyboard_map_shift[scancode] : keyboard_map_normal[scancode];
+char get_last_key(void) {
+    if (inb(0x64) & 0x01) {
+        uint8_t scancode = inb(0x60);
+        
+        // Apenas pressões de tecla (Scancodes < 0x80)
+        if (!(scancode & 0x80)) {
+            switch (scancode) {
+                // Números
+                case 0x02: return '1';
+                case 0x03: return '2';
+                case 0x04: return '3';
+                case 0x05: return '4';
+                case 0x06: return '5';
+                case 0x07: return '6';
+                case 0x08: return '7';
+                case 0x09: return '8';
+                case 0x0A: return '9';
+                case 0x0B: return '0';
 
-            // Trata o acento til pendente
-            if (pending_tilde) {
-                pending_tilde = 0;
-                
-                // Imprime primeiro o til e salva no buffer
-                if (buffer_index < BUFFER_SIZE - 1) {
-                    input_buffer[buffer_index++] = '~';
-                    terminal_putchar('~');
-                }
-                
-                // Em seguida, o código continuará para imprimir a letra normal ('a', 'o', etc.)
-            } else if (letter == '~') {
-                pending_tilde = 1;
-                outb(0x20, 0x20);
-                return;
-            }
+                // Primeira Linha de Letras (QWERTYUIOP)
+                case 0x10: return 'q';
+                case 0x11: return 'w';
+                case 0x12: return 'e';
+                case 0x13: return 'r';
+                case 0x14: return 't';
+                case 0x15: return 'y';
+                case 0x16: return 'u';
+                case 0x17: return 'i';
+                case 0x18: return 'o';
+                case 0x19: return 'p'; // <-- Adicionada a tecla P!
 
-            if (letter == '\n') {
-                process_command();
-            } else if (letter == '\b') {
-                if (buffer_index > 0) {
-                    buffer_index--;
-                    terminal_putchar('\b');
-                }
-            } else if (letter != 0 && buffer_index < BUFFER_SIZE - 1) {
-                input_buffer[buffer_index++] = letter;
-                terminal_putchar(letter);
+                // Segunda Linha de Letras (ASDFGHJKL)
+                case 0x1E: return 'a';
+                case 0x1F: return 's';
+                case 0x20: return 'd';
+                case 0x21: return 'f';
+                case 0x22: return 'g';
+                case 0x23: return 'h';
+                case 0x24: return 'j';
+                case 0x25: return 'k';
+                case 0x26: return 'l';
+
+                // Terceira Linha de Letras (ZXCVBNM)
+                case 0x2C: return 'z';
+                case 0x2D: return 'x';
+                case 0x2E: return 'c';
+                case 0x2F: return 'v';
+                case 0x30: return 'b';
+                case 0x31: return 'n';
+                case 0x32: return 'm';
+
+                // Teclas de Controle e Símbolos
+                case 0x1C: return '\n'; // Enter
+                case 0x0E: return '\b'; // Backspace
+                case 0x39: return ' ';  // Espaço
+                case 0x34: return '.';  // Ponto
+                case 0x35: return '/';  // Barra
+
+                default: break;
             }
         }
     }
-
-    outb(0x20, 0x20); // Envia EOI ao PIC
+    return 0;
 }
