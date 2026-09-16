@@ -1,31 +1,43 @@
-# KernelLuc
-# 🧠 KernelLuc
+# KernioLuc OS
 
-O **KernelLuc** é um projeto educacional desenvolvido como base de conhecimento e ambiente de testes para o estudo de desenvolvimento de kernels, arquitetura de sistemas operacionais e programação de baixo nível.
+🧠 **KernioLuc OS** é um sistema operacional educacional desenvolvido em C e Assembly (x86 32-bit), criado para explorar os fundamentos de desenvolvimento de kernels *bare-metal*, drivers de hardware e renderização gráfica.
 
-## 🎯 Objetivos
+---
 
-- **Aprendizado Prático:** Compreender o funcionamento interno de um sistema operacional a partir do zero.
-- **Base de Conhecimento:** Documentar conceitos de gerenciamento de memória, processos, interrupções e rotinas de baixo nível.
-- **Experimentos:** Servir como sandbox para testes de código próximo ao hardware.
+## 🚀 Funcionalidades Atuais
 
-## 🔬 Tópicos de Estudo
+* **Bootloader e Modo Protegido:** Transição do Bootloader Real Mode (16-bit) para Protected Mode (32-bit).
+* **Interface Gráfica (VGA Modo 13h):** Renderização de texto pixel a pixel com suporte à tabela ASCII completa de 128 caracteres.
+* **Driver de Teclado PS/2:** Mapeamento de scancodes para captura de texto e teclas de controle em tempo real.
+* **Shell Interativo:** Terminal customizado com suporte a comandos e feedback visual na tela.
 
-- [ ] Bootloader e inicialização do sistema
-- [ ] Gerenciamento de Memória (Paging / Segmentation)
-- [ ] Trata de Interrupções (IDT / ISRs)
+---
+
+## 🔬 Tópicos de Estudo & Arquitetura
+
+- [x] Bootloader e inicialização de sistema em Assembly x86
+- [x] Alternância para Modo Protegido (32-bit)
+- [x] Driver Gráfico VGA $320 \times 200$ (256 cores)
+- [x] Driver de Teclado PS/2 (E/S via portas `0x60` e `0x64`)
+- [ ] Gerenciamento de Memória Dinâmica (Paging / Heap Allocator)
+- [ ] Tabela de Interrupções (IDT) e ISRs
 - [ ] Multitasking e Troca de Contexto
-- [ ] Drivers básicos e comunicação E/S
+- [ ] Sistema de Arquivos (VFS / RAMDisk)
 
-## 🛠️ Ferramentas & Linguagens
+---
 
-- **Linguagens:** C / Assembly (x86 / x86_64)
-- **Emulador/VM:** QEMU / VirtualBox
-- **Compilação:** GCC Cross-Compiler / NASM / Make
+## 🛠️ Ferramentas Utilizadas
 
-## 📚 Como Compilar e Executar
+* **Linguagens:** C e Assembly NASM (x86 32-bit)
+* **Compilador e Ferramentas:** `gcc`, `nasm`, `ld`, `make`
+* **Emulador:** QEMU (`qemu-system-i386`)
 
-1. **Clone o repositório:**
-   ```bash
-   git clone [https://github.com/SEU_USUARIO/KernioLuc.git](https://github.com/SEU_USUARIO/KernioLuc.git)
-   cd KernioLuc
+---
+
+## 💻 Como Compilar e Executar
+
+### Pré-requisitos
+No Linux (Ubuntu/Debian), instale as ferramentas necessárias:
+```bash
+sudo apt update
+sudo apt install build-essential nasm qemu-system-x86
