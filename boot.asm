@@ -8,9 +8,9 @@ start:
     mov ss, ax
     mov sp, 0x7c00
 
-    mov [boot_drive], dl
+    mov [boot_drive], dl    ; Salva o ID do drive passado pela BIOS (0x00 = Floppy, 0x80 = HD)
 
-    ; 1. Activa Modo Gráfico VGA Modo 13h (320x200, 256 cores)
+    ; 1. Ativa Modo Gráfico VGA Modo 13h (320x200, 256 cores)
     mov ax, 0x0013
     int 0x10
 
@@ -18,19 +18,30 @@ start:
     mov ax, 0x1000
     mov es, ax
     
-    mov cl, 2          ; Setor 2
-    mov ch, 0          ; Trilha 0
-    mov dh, 0          ; Cabeça 0
-    mov di, 120         ; Aumentado para 120 setores (~40KB de Kernel)
+    mov cl, 2           ; Começa no Setor 2 (LBA Setor 1 do HD)
+    mov ch, 0           ; Trilha 0
+    mov dh, 0           ; Cabeça 0
+    mov di, 121         ; Carrega 121 setores (120 setores do kernel + 1 setor do boot_hd.bin)
 
 read_kernel_loop:
+    mov si, 3           ; Contador de 3 tentativas por setor
+
+.retry_read:
     xor bx, bx
     mov ah, 0x02
     mov al, 1
+    mov dl, [boot_drive] ; Usa o drive correto (0x80 para HD)
+    int 0x13
+    jnc .read_success
+
+    dec si
+    jz read_fail
+    xor ax, ax
     mov dl, [boot_drive]
     int 0x13
-    jc read_fail
+    jmp .retry_read
 
+.read_success:
     mov ax, es
     add ax, 0x0020
     mov es, ax
@@ -51,7 +62,6 @@ continue_loop:
     dec di
     jnz read_kernel_loop
 
-    ; 3. Salto para Modo Protegido 32-bit
     cli
     lgdt [gdt_descriptor]
     mov eax, cr0

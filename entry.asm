@@ -2,22 +2,31 @@
 [extern kernel_main]
 
 global _start
+global idt_load
+global no_interrupt_handler
+global irq1_keyboard
+
+extern keyboard_handler
+
 _start:
-    ; Configura os registradores de segmento para Modo Protegido (0x10 = Segmento de Dados)
-    mov ax, 0x10
-    mov ds, ax
-    mov es, ax
-    mov fs, ax
-    mov gs, ax
-    mov ss, ax
-
-    ; Configura a Pilha (Stack) em local seguro da RAM
-    mov esp, 0x90000
-
-    ; Chama a função C do kernel
     call kernel_main
-
 .loop:
-    cli
     hlt
     jmp .loop
+
+; --- Rotinas de Interrupção IDT ---
+idt_load:
+    mov eax, [esp + 4]
+    lidt [eax]
+    ret
+
+no_interrupt_handler:
+    iret
+
+irq1_keyboard:
+    pusha
+    call keyboard_handler
+    mov al, 0x20
+    out 0x20, al        ; Sinal de EOI para o PIC Master
+    popa
+    iret

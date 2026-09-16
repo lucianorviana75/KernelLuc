@@ -1,61 +1,76 @@
 CC = gcc
-CFLAGS = -m32 -ffreestanding -fno-stack-protector -nostdlib -fno-pie -fno-pic
-ASM = nasm
+NASM = nasm
 LD = ld
 
-# Target padrão: gera a imagem completa do sistema
-all: os.img
+CFLAGS = -m32 -ffreestanding -fno-pie -c
+LDFLAGS = -m elf_i386 -T linker.ld --oformat binary
 
-# 1. Bootloader de 16-bit (Gera Flat Binary bruto de 512 bytes)
-boot.bin: boot.asm
-	$(ASM) -f bin boot.asm -o boot.bin
+OBJS = entry.o kernel.o heap.o obj_loader.o keyboard.o gfx.o font.o vfs.o window.o shell.o ata.o idt.o pic.o
 
-# 2. Ponto de Entrada do Kernel em 32-bit (Gera objeto ELF32)
+all: boot_hd.bin os.img hd.img
+
+bootloader.bin: boot.asm
+	$(NASM) -f bin boot.asm -o bootloader.bin
+
+boot_hd.bin: boot_hd.asm
+	$(NASM) -f bin boot_hd.asm -o boot_hd.bin
+
 entry.o: entry.asm
-	$(ASM) -f elf32 entry.asm -o entry.o
+	$(NASM) -f elf32 entry.asm -o entry.o
 
-# 3. Módulos em C
 kernel.o: kernel.c
-	$(CC) $(CFLAGS) -c kernel.c -o kernel.o
+	$(CC) $(CFLAGS) kernel.c -o kernel.o
 
 heap.o: heap.c
-	$(CC) $(CFLAGS) -c heap.c -o heap.o
+	$(CC) $(CFLAGS) heap.c -o heap.o
 
 obj_loader.o: obj_loader.c
-	$(CC) $(CFLAGS) -c obj_loader.c -o obj_loader.o
+	$(CC) $(CFLAGS) obj_loader.c -o obj_loader.o
 
 keyboard.o: keyboard.c
-	$(CC) $(CFLAGS) -c keyboard.c -o keyboard.o
+	$(CC) $(CFLAGS) keyboard.c -o keyboard.o
 
 gfx.o: gfx.c
-	$(CC) $(CFLAGS) -c gfx.c -o gfx.o
+	$(CC) $(CFLAGS) gfx.c -o gfx.o
 
 font.o: font.c
-	$(CC) $(CFLAGS) -c font.c -o font.o
+	$(CC) $(CFLAGS) font.c -o font.o
 
 vfs.o: vfs.c
-	$(CC) $(CFLAGS) -c vfs.c -o vfs.o
+	$(CC) $(CFLAGS) vfs.c -o vfs.o
 
 window.o: window.c
-	$(CC) $(CFLAGS) -c window.c -o window.o
+	$(CC) $(CFLAGS) window.c -o window.o
 
 shell.o: shell.c
-	$(CC) $(CFLAGS) -c shell.c -o shell.o
+	$(CC) $(CFLAGS) shell.c -o shell.o
 
-# 4. Linking do Kernel Completo
-kernel.bin: entry.o kernel.o heap.o obj_loader.o keyboard.o gfx.o font.o vfs.o window.o shell.o
-	$(LD) -m elf_i386 -T linker.ld --oformat binary -o kernel.bin entry.o kernel.o heap.o obj_loader.o keyboard.o gfx.o font.o vfs.o window.o shell.o
+ata.o: ata.c
+	$(CC) $(CFLAGS) ata.c -o ata.o
 
-# 5. Criação da Imagem de Disquete de 1.44MB (boot.bin no setor 0, kernel.bin no setor 1)
-os.img: boot.bin kernel.bin
-	dd if=/dev/zero of=os.img bs=512 count=2880 status=none
-	dd if=boot.bin of=os.img conv=notrunc status=none
-	dd if=kernel.bin of=os.img bs=512 seek=1 conv=notrunc status=none
+idt.o: idt.c
+	$(CC) $(CFLAGS) idt.c -o idt.o
 
-# Executar no QEMU
-run: os.img
-	qemu-system-i386 -drive format=raw,file=os.img,index=0,if=floppy
+pic.o: pic.c
+	$(CC) $(CFLAGS) pic.c -o pic.o
 
-# Limpeza
+kernel.bin: $(OBJS)
+	$(LD) $(LDFLAGS) -o kernel.bin $(OBJS)
+
+# Inclui o boot_hd.bin no final da imagem do disquete para o instalador poder ler!
+os.img: bootloader.bin kernel.bin boot_hd.bin
+	cat bootloader.bin kernel.bin boot_hd.bin > os.img
+	truncate -s 1440k os.img
+
+hd.img:
+	qemu-img create -f raw hd.img 64M
+	
+run: os.img hd.img
+	qemu-system-i386 -drive file=os.img,format=raw,index=0,if=floppy -drive file=hd.img,format=raw,index=0,if=ide
+
+run-hd: boot_hd.bin hd.img
+	dd if=boot_hd.bin of=hd.img conv=notrunc bs=512 count=1
+	qemu-system-i386 -drive file=hd.img,format=raw,index=0,if=ide
+
 clean:
-	rm -f *.o boot.bin kernel.bin os.img
+	rm -f *.o *.bin os.img hd.img
